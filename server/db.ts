@@ -112,30 +112,24 @@ export function seed(database: Database) {
   // Ensure all existing users have a tier (migration for seeded users)
   database.run("UPDATE users SET tier = 'free' WHERE tier IS NULL OR tier = ''");
 
-  const existing = database.query("SELECT id FROM users WHERE id = 1").get();
-  if (existing) return;
-
-  database.run(
-    "INSERT INTO users (id, email, name, tier) VALUES (1, 'user@nibble.app', 'Alex', 'free')"
-  );
-  database.run(
-    "INSERT INTO daily_goals (user_id, calorie_goal, protein_goal, carbs_goal, fat_goal) VALUES (1, 2000, 150, 250, 65)"
-  );
-
-  const today = new Date().toISOString().slice(0, 10);
-
-  const entries = [
-    { food_name: "Oatmeal with berries", calories: 320, protein: 10, carbs: 55, fat: 6, meal_type: "breakfast" },
-    { food_name: "Grilled chicken salad", calories: 450, protein: 42, carbs: 12, fat: 24, meal_type: "lunch" },
-    { food_name: "Protein bar", calories: 210, protein: 20, carbs: 25, fat: 7, meal_type: "snack" },
-    { food_name: "Salmon with rice", calories: 580, protein: 38, carbs: 48, fat: 22, meal_type: "dinner" },
-  ];
-
-  const insert = database.prepare(
-    "INSERT INTO food_entries (user_id, food_name, calories, protein, carbs, fat, meal_type, date) VALUES (1, ?, ?, ?, ?, ?, ?, ?)"
-  );
-
-  for (const e of entries) {
-    insert.run(e.food_name, e.calories, e.protein, e.carbs, e.fat, e.meal_type, today);
+  // Always ensure the demo user and goals exist (needed for app functionality).
+  // Use separate, idempotent checks so a DB reset doesn't break onboarding.
+  const user = database.query("SELECT id FROM users WHERE id = 1").get();
+  if (!user) {
+    database.run(
+      "INSERT INTO users (id, email, name, tier) VALUES (1, 'user@nibble.app', 'Alex', 'free')"
+    );
   }
+
+  const goals = database.query("SELECT id FROM daily_goals WHERE user_id = 1").get();
+  if (!goals) {
+    database.run(
+      "INSERT INTO daily_goals (user_id, calorie_goal, protein_goal, carbs_goal, fat_goal) VALUES (1, 2000, 150, 250, 65)"
+    );
+  }
+
+  // No longer auto-seed demo food entries — users should start with a clean
+  // slate so the onboarding flow works after a DB reset. Entry seeding is
+  // gated on food_entries count for user 1, but since the DB is fresh after
+  // reset this would always create entries and block onboarding.
 }
